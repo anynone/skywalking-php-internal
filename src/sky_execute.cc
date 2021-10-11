@@ -46,8 +46,8 @@ void sky_execute_ex(zend_execute_data *execute_data) {
     zend_function *fn = execute_data->func;
     bool ignore_msg = false;
     int is_class = fn->common.scope != nullptr && fn->common.scope->name != nullptr;
-    char *class_name = is_class ? ZSTR_VAL(fn->common.scope->name) : nullptr;
-    char *function_name = fn->common.function_name != nullptr ? ZSTR_VAL(fn->common.function_name) : nullptr;
+    char *class_name = is_class ? ZSTR_VAL(fn->common.scope->name) : nullptr;  //获取当前类名
+    char *function_name = fn->common.function_name != nullptr ? ZSTR_VAL(fn->common.function_name) : nullptr; // 获取方法名zend_string_value
     std::string className = "";
     std::string methodName = "";
     if (class_name != nullptr) className = class_name;
@@ -99,11 +99,12 @@ void sky_execute_ex(zend_execute_data *execute_data) {
 
             // decode json
             zval jsonData;
-            sky_json_decode(traceData, &jsonData);
             zval ext;
             zval *extData;
-            ZVAL_NEW_ARR(&ext);
-            extData = sky_hashtable_default(&jsonData, "ext", &ext);
+            if(0 == sky_json_decode(traceData, &jsonData) && zend_array_count(Z_ARRVAL_P(jsonData)) < 10){
+                ZVAL_NEW_ARR(&ext);
+                extData = sky_hashtable_default(&jsonData, "ext", &ext);
+            }
 
             swoft_json_rpc jsonRpcData;
 

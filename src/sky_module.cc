@@ -87,13 +87,19 @@ void sky_module_init() {
 
     sprintf(s_info->mq_name, "skywalking_queue_%d", getpid());
 
-    try {
-//        boost::interprocess::message_queue::remove(s_info->mq_name);
+    std::ostringstream strPid;
+    strPid << getpid();
+    if (getpid() != 1){
+        return; // 非主进程返回
+    }
+    sky_log("error 95: pid = " + strPid.str());
 
+    try {
+        boost::interprocess::message_queue::remove(s_info->mq_name);
 
         boost::interprocess::message_queue(
-//                boost::interprocess::open_or_create,
-        boost::interprocess::create_only,
+                boost::interprocess::open_or_create,
+//        boost::interprocess::create_only,
                 s_info->mq_name,
                 10240,
                 SKYWALKING_G(mq_max_message_length),
@@ -103,14 +109,9 @@ void sky_module_init() {
         php_error(E_WARNING, "%s %s", "[skywalking] create queue fail ", ex.what());
         return;
     }
-    std::ostringstream strPid;
-    strPid << getpid();
-    if (getpid() == 1){
-        sky_log("error 109: pid = " + strPid.str());
-        new Manager(opt, s_info);
-    }
-    sky_log("error 112: pid = " + strPid.str());
 
+    sky_log("error 114: pid = " + strPid.str());
+    new Manager(opt, s_info);
 }
 
 void sky_module_cleanup() {
