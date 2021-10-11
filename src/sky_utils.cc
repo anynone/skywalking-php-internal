@@ -138,12 +138,18 @@ Segment *sky_get_segment(zend_execute_data *execute_data, int64_t request_id) {
     auto *segments = static_cast<std::map<uint64_t, Segment *> *>SKYWALKING_G(segment);
 
     if (request_id >= 0) {
-        return segments->at(request_id);
+        if (segments->find(request_id) != segments->end()){
+            return segments->at(request_id);
+        }else{
+            return nullptr;
+        }
     } else {
         if (SKYWALKING_G(is_swoole)) {
             int64_t fd = sky_find_swoole_fd(execute_data);
             if (fd > 0) {
-                return segments->at(fd);
+                if (segments->find(fd) != segments->end()){
+                    return segments->at(fd);
+                }
             }
         } else {
             return segments->at(0);
@@ -187,7 +193,6 @@ std::string sky_json_encode(zval *parameter) {
 }
 
 int sky_json_decode(std::string json,  zval* jsonZval){
-
     char *jsonC = new char[json.length() + 1];
     strcpy(jsonC, json.c_str());
 
@@ -200,16 +205,16 @@ int sky_json_decode(std::string json,  zval* jsonZval){
     return 0;
 }
 
-zval* sky_hashtable_default(zval* hashTable, std::string key, std::string dft){
+std::string sky_hashtable_default(zval* hashTable, std::string key, std::string dft){
     zval ret;
     ZVAL_STR(&ret, zend_string_init(dft.c_str(), strlen(dft.c_str()), 0));
-    return sky_hashtable_default(hashTable, key, &ret);
+    return Z_STRVAL_P(sky_hashtable_default(hashTable, key, &ret));
 }
 
-zval* sky_hashtable_default(zval* hashTable, std::string key, int dft){
+zend_long sky_hashtable_default(zval* hashTable, std::string key, int dft){
     zval ret;
     ZVAL_LONG(&ret, dft);
-    return sky_hashtable_default(hashTable, key, &ret);
+    return Z_LVAL_P(sky_hashtable_default(hashTable, key, &ret));
 }
 
 zval* sky_hashtable_default(zval* hashTable, std::string key, zval* dft){

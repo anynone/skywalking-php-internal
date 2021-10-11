@@ -35,5 +35,6 @@ void sky_module_cleanup();
 void sky_request_init(zval *request, uint64_t request_id);
 void sky_rpc_init(uint64_t request_id, swoft_json_rpc rpcData);
 void sky_request_flush(zval *response, uint64_t request_id);
+void sky_request_destory(uint64_t request_id);
 
 #endif //SKYWALKING_SKY_MODULE_H

@@ -122,7 +122,8 @@ void Manager::login(const ManagerOptions &options, struct service_info *info) {
             h.detach();
         }
         status = rc.ok();
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        std::this_thread::sleep_for(std::chrono::seconds(3));
     }
 }
 
@@ -142,7 +143,11 @@ void Manager::login(const ManagerOptions &options, struct service_info *info) {
 
         stub->keepAlive(&context, ping, &commands);
 
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::ostringstream strPid;
+        strPid << getpid();
+        sky_log("error 148: pid = " + strPid.str());
+
+        std::this_thread::sleep_for(std::chrono::seconds(3));
     }
 }
 

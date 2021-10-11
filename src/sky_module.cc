@@ -88,19 +88,29 @@ void sky_module_init() {
     sprintf(s_info->mq_name, "skywalking_queue_%d", getpid());
 
     try {
-        boost::interprocess::message_queue::remove(s_info->mq_name);
+//        boost::interprocess::message_queue::remove(s_info->mq_name);
+
+
         boost::interprocess::message_queue(
-                boost::interprocess::open_or_create,
+//                boost::interprocess::open_or_create,
+        boost::interprocess::create_only,
                 s_info->mq_name,
-                1024,
+                10240,
                 SKYWALKING_G(mq_max_message_length),
                 boost::interprocess::permissions(0666)
         );
     } catch (boost::interprocess::interprocess_exception &ex) {
         php_error(E_WARNING, "%s %s", "[skywalking] create queue fail ", ex.what());
+        return;
     }
+    std::ostringstream strPid;
+    strPid << getpid();
+    if (getpid() == 1){
+        sky_log("error 109: pid = " + strPid.str());
+        new Manager(opt, s_info);
+    }
+    sky_log("error 112: pid = " + strPid.str());
 
-    new Manager(opt, s_info);
 }
 
 void sky_module_cleanup() {
@@ -209,15 +219,21 @@ void sky_rpc_init(uint64_t request_id, swoft_json_rpc rpcData) {
         segments = static_cast<std::map<uint64_t, Segment *> *>SKYWALKING_G(segment);
     }
 
-    // 按照skywalking header拼接串
-    header.append("0").append("-") \
-    .append(Base64::encode(rpcData.ext.traceid)).append("-") \
-    .append(Base64::encode(rpcData.ext.traceid)).append("-") \
-    .append(rpcData.ext.spanid).append("-") \
-    .append(Base64::encode(rpcData.ext.serviceName)).append("-") \
-    .append(Base64::encode(rpcData.ext.ServiceInstance)).append("-") \
-    .append(Base64::encode(rpcData.ext.endpoint)).append("-") \
-    .append(Base64::encode(rpcData.ext.address));
+    if (!rpcData.ext.traceid.empty()){
+        // 按照skywalking header拼接串
+        header.append("0").append("-") \
+        .append(Base64::encode(rpcData.ext.traceid)).append("-") \
+        .append(Base64::encode(rpcData.ext.traceid)).append("-") \
+        .append(rpcData.ext.spanid).append("-") \
+        .append(Base64::encode(rpcData.ext.serviceName)).append("-") \
+        .append(Base64::encode(rpcData.ext.ServiceInstance)).append("-") \
+        .append(Base64::encode(rpcData.ext.endpoint)).append("-") \
+        .append(Base64::encode(rpcData.ext.address));
+    }else{
+        return;
+//        header = "";
+    }
+
 
     php_printf(header.c_str());
     auto *segment = new Segment(s_info->service, s_info->service_instance, SKYWALKING_G(version), header);
@@ -226,15 +242,28 @@ void sky_rpc_init(uint64_t request_id, swoft_json_rpc rpcData) {
         result.first->second = segment;
     }
     std::string logStr = std::to_string(request_id);
+
     auto *span = segments->at(request_id)->createSpan(SkySpanType::Entry, SkySpanLayer::Http, 8001);
     span->setOperationName(rpcData.method);
     span->setPeer(rpcData.ext.endpoint);
     span->addTag("url", rpcData.method);
     segments->at(request_id)->createRefs();
     span->addTag("http.method", "rpc");
-    php_printf((logStr + "\n").c_str());
+    php_printf((logStr + "--------------------------------------------------------------------\n").c_str());
 }
 
+// 清除本次请求的消息
+void sky_request_destory(uint64_t request_id){
+    auto *segment = sky_get_segment(nullptr, request_id);
+    std::string logStr = "\nclean\n";
+
+    if (segment != nullptr){
+        logStr.append("no null\n");
+        delete segment;
+    }
+
+    php_printf(logStr.c_str());
+}
 
 void sky_request_flush(zval *response, uint64_t request_id) {
     auto *segment = sky_get_segment(nullptr, request_id);

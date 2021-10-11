@@ -44,6 +44,7 @@ void (*ori_execute_internal)(zend_execute_data *execute_data, zval *return_value
 void sky_execute_ex(zend_execute_data *execute_data) {
 
     zend_function *fn = execute_data->func;
+    bool ignore_msg = false;
     int is_class = fn->common.scope != nullptr && fn->common.scope->name != nullptr;
     char *class_name = is_class ? ZSTR_VAL(fn->common.scope->name) : nullptr;
     char *function_name = fn->common.function_name != nullptr ? ZSTR_VAL(fn->common.function_name) : nullptr;
@@ -105,25 +106,33 @@ void sky_execute_ex(zend_execute_data *execute_data) {
             extData = sky_hashtable_default(&jsonData, "ext", &ext);
 
             swoft_json_rpc jsonRpcData;
+
 //            php_var_dump(sky_hashtable_default(extData, "sw8", "")); // s8的支持，二期标准化sw8协议,molten端已经实现，这次先这样@210821
-            jsonRpcData.method = Z_STRVAL_P(sky_hashtable_default(&jsonData, "method", ""));//jsonValue["method"].asString();
-            jsonRpcData.jsonrpc = Z_STRVAL_P(sky_hashtable_default(&jsonData, "jsonrpc", ""));//jsonValue["jsonrpc"].asString();
-            jsonRpcData.ext.traceid = Z_STRVAL_P(sky_hashtable_default(extData, "traceid", ""));//extData["traceid"].asString();
-            jsonRpcData.ext.spanid = Z_STRVAL_P(sky_hashtable_default(extData, "spanid", ""));//extData["spanid"].asString();
-            jsonRpcData.ext.parentid = Z_STRVAL_P(sky_hashtable_default(extData, "parentid", "0"));//extData["parentid"].asString();
-            jsonRpcData.ext.uri = Z_STRVAL_P(sky_hashtable_default(extData, "uri", ""));//extData["uri"].asString();
-            jsonRpcData.ext.requestTime = Z_STRVAL_P(sky_hashtable_default(extData, "requestTime", ""));//extData["requestTime"].asString();
-            jsonRpcData.ext.serviceName = Z_STRVAL_P(sky_hashtable_default(extData, "serviceName", ""));//extData["serviceName"].asString();
-            jsonRpcData.ext.ServiceInstance = Z_STRVAL_P(sky_hashtable_default(extData, "ServiceInstance", "0"));//extData["ServiceInstance"].asString();
+            jsonRpcData.method = sky_hashtable_default(&jsonData, "method", "");//jsonValue["method"].asString();
+            jsonRpcData.jsonrpc = sky_hashtable_default(&jsonData, "jsonrpc", "");//jsonValue["jsonrpc"].asString();
+            if (zend_array_count(Z_ARRVAL_P(extData)) > 0){
+                jsonRpcData.ext.traceid = sky_hashtable_default(extData, "traceid", "");//extData["traceid"].asString();
+                jsonRpcData.ext.spanid = sky_hashtable_default(extData, "spanid", "");//extData["spanid"].asString();
+                jsonRpcData.ext.parentid = sky_hashtable_default(extData, "parentid", "0");//extData["parentid"].asString();
+                jsonRpcData.ext.uri = sky_hashtable_default(extData, "uri", "");//extData["uri"].asString();
+                jsonRpcData.ext.requestTime = sky_hashtable_default(extData, "requestTime", "");//extData["requestTime"].asString();
+                jsonRpcData.ext.serviceName = sky_hashtable_default(extData, "serviceName", "");//extData["serviceName"].asString();
+                jsonRpcData.ext.ServiceInstance = sky_hashtable_default(extData, "ServiceInstance", "0");//extData["ServiceInstance"].asString();
+            }else{
+                jsonRpcData.ext.traceid = ""; // 避免空指针
+            }
+
             jsonRpcData.ext.address = swfHost + ":" + swfPort;
             jsonRpcData.ext.endpoint = swfHost + ":" + swfPort;
 
             // segments全局变量
-            if (!jsonRpcData.ext.traceid.empty()){
-                sky_rpc_init(request_id, jsonRpcData);
-                swoole = true;
-                SKYWALKING_G(is_swoole) = true;
+            sky_rpc_init(request_id, jsonRpcData);
+            swoole = true;
+            SKYWALKING_G(is_swoole) = true;
+            if (jsonRpcData.ext.traceid.empty()){
+                ignore_msg = true;
             }
+
         }
     }
 
@@ -169,8 +178,14 @@ void sky_execute_ex(zend_execute_data *execute_data) {
             span->setEndTIme();
         }
     }
-    if (swoole) {
-        sky_request_flush(sw_response, request_id);
+
+    // skywalking没有消息采样的配置，这里如果没有获取到上层的trace信息，忽略掉这次的trace消息
+    if (ignore_msg){
+        sky_request_destory(request_id);
+    }else{
+        if (swoole) {
+            sky_request_flush(sw_response, request_id);
+        }
     }
 }
 

@@ -25,6 +25,12 @@
 extern void (*ori_execute_ex)(zend_execute_data *execute_data);
 
 void sky_plugin_swoole_curl(zend_execute_data *execute_data, const std::string &class_name, const std::string &function_name) {
+    auto *segment = sky_get_segment(execute_data, -1);
+    if (segment == nullptr) {
+        ori_execute_ex(execute_data);
+        return;
+    }
+
     uint32_t arg_count = ZEND_CALL_NUM_ARGS(execute_data);
 
     if (arg_count >= 1) {
