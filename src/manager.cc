@@ -143,10 +143,6 @@ void Manager::login(const ManagerOptions &options, struct service_info *info) {
 
         stub->keepAlive(&context, ping, &commands);
 
-        std::ostringstream strPid;
-        strPid << getpid();
-        sky_log("error 148: pid = " + strPid.str());
-
         std::this_thread::sleep_for(std::chrono::seconds(3));
     }
 }

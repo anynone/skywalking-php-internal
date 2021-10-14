@@ -92,7 +92,7 @@ void sky_module_init() {
     if (getpid() != 1){
         return; // 非主进程返回
     }
-    sky_log("error 95: pid = " + strPid.str());
+    sky_log("log 95: pid = " + strPid.str());
 
     try {
         boost::interprocess::message_queue::remove(s_info->mq_name);
@@ -110,7 +110,7 @@ void sky_module_init() {
         return;
     }
 
-    sky_log("error 114: pid = " + strPid.str());
+    sky_log("log 114: pid = " + strPid.str());
     new Manager(opt, s_info);
 }
 
@@ -123,6 +123,7 @@ void sky_module_cleanup() {
 }
 
 void sky_request_init(zval *request, uint64_t request_id) {
+    sky_log("http请求->  sky_request_init: ...");
     array_init(&SKYWALKING_G(curl_header));
 
     zval *carrier = nullptr;
@@ -132,22 +133,27 @@ void sky_request_init(zval *request, uint64_t request_id) {
     std::string peer;
 
     if (request != nullptr) {
+        sky_log("http请求->  获取header,server: ...");
+
         zval *swoole_header = sky_read_property(request, "header", 0);
         zval *swoole_server = sky_read_property(request, "server", 0);
 
         if (SKYWALKING_G(version) == 8) {
+            sky_log("http请求->  获取sw8头");
             sw = zend_hash_str_find(Z_ARRVAL_P(swoole_header), "sw8", sizeof("sw8") - 1);
         } else {
             sw = nullptr;
         }
 
         header = (sw != nullptr ? Z_STRVAL_P(sw) : "");
-
+        sky_log("header: " + header);
         uri = Z_STRVAL_P(zend_hash_str_find(Z_ARRVAL_P(swoole_server), "request_uri", sizeof("request_uri") - 1));
+        sky_log("uri: " + uri);
 
         peer_val = zend_hash_str_find(Z_ARRVAL_P(swoole_header), "host", sizeof("host") - 1);
         if (peer_val != nullptr) {
             peer = Z_STRVAL_P(peer_val);
+            sky_log("header 中获取到host: " + peer);
         } else {
             char hostname[HOST_NAME_MAX + 1];
             if (gethostname(hostname, sizeof(hostname))) {
@@ -157,8 +163,10 @@ void sky_request_init(zval *request, uint64_t request_id) {
             peer += hostname;
             peer += ":";
             peer += std::to_string(Z_LVAL_P(peer_val));
+            sky_log("本机地址和port拼接 获取到host: " + peer);
         }
     } else {
+        sky_log("http请求->  request是null，这个是异常的？？？");
         zend_bool jit_initialization = PG(auto_globals_jit);
 
         if (jit_initialization) {
@@ -181,8 +189,9 @@ void sky_request_init(zval *request, uint64_t request_id) {
         header = (sw != nullptr ? Z_STRVAL_P(sw) : "");
         uri = get_page_request_uri();
         peer = get_page_request_peer();
+        sky_log("get_page_request_uri， peer" + uri + "," + peer);
     }
-
+    sky_log("初始化链路信息");
     std::map<uint64_t, Segment *> *segments;
     if (SKYWALKING_G(segment) == nullptr) {
         segments = new std::map<uint64_t, Segment *>;
@@ -190,23 +199,25 @@ void sky_request_init(zval *request, uint64_t request_id) {
     } else {
         segments = static_cast<std::map<uint64_t, Segment *> *>SKYWALKING_G(segment);
     }
-
+    sky_log("初始化segment");
     auto *segment = new Segment(s_info->service, s_info->service_instance, SKYWALKING_G(version), header);
+    sky_log("segment写入到请求id segment数组");
     auto const result = segments->insert(std::pair<uint64_t, Segment *>(request_id, segment));
     if (not result.second) {
         result.first->second = segment;
     }
-
+    sky_log("segment下新建span");
     auto *span = segments->at(request_id)->createSpan(SkySpanType::Entry, SkySpanLayer::Http, 8001);
     span->setOperationName(uri);
     span->setPeer(peer);
     span->addTag("url", uri);
     segments->at(request_id)->createRefs();
-
+    sky_log("获取request_method,添加请求方法");
     zval *request_method = zend_hash_str_find(Z_ARRVAL(PG(http_globals)[TRACK_VARS_SERVER]), ZEND_STRL("REQUEST_METHOD"));
     if (request_method != NULL) {
         span->addTag("http.method", Z_STRVAL_P(request_method));
     }
+    sky_log("初始化链路信息初始化完成");
 }
 
 void sky_rpc_init(uint64_t request_id, swoft_json_rpc rpcData) {

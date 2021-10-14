@@ -21,6 +21,7 @@
 #include "sky_utils.h"
 
 #include "php_skywalking.h"
+#include "sky_types.h"
 
 bool starts_with(const char *pre, const char *str) {
     size_t len_pre = strlen(pre),
@@ -206,29 +207,42 @@ int sky_json_decode(std::string json,  zval* jsonZval){
 }
 
 std::string sky_hashtable_default(zval* hashTable, std::string key, std::string dft){
-    zval ret;
-    ZVAL_STR(&ret, zend_string_init(dft.c_str(), strlen(dft.c_str()), 0));
-    return Z_STRVAL_P(sky_hashtable_default(hashTable, key, &ret));
+    zval *ret;
+//    ZVAL_STR(ret, zend_string_init(dft.c_str(), strlen(dft.c_str()), 0));
+    sky_hashtable_default(hashTable, key, &ret);
+    if (ret == NULL || (Z_TYPE_P(ret) != IS_STRING)){
+        return dft;
+    }
+    return Z_STRVAL_P(ret);
 }
 
 zend_long sky_hashtable_default(zval* hashTable, std::string key, int dft){
-    zval ret;
-    ZVAL_LONG(&ret, dft);
-    return Z_LVAL_P(sky_hashtable_default(hashTable, key, &ret));
+    zval *ret;
+    ZVAL_LONG(ret, dft);
+    sky_hashtable_default(hashTable, key, &ret);
+    if(ret == NULL || Z_ISNULL_P(ret) || (Z_TYPE_P(ret) != IS_LONG)){
+        return dft;
+    }
+
+    return Z_LVAL_P(ret);
 }
 
-zval* sky_hashtable_default(zval* hashTable, std::string key, zval* dft){
-    if (Z_TYPE_P(hashTable) != IS_ARRAY){
-        return dft;
-    }
-    zval *data = NULL;
-    data = zend_hash_find(Z_ARRVAL_P(hashTable), zend_string_init(key.c_str(), strlen(key.c_str()), 0));
-    if (data == NULL){
-        return dft;
-    }
-    if (Z_TYPE_P(data) != Z_TYPE_P(dft)){
-        return dft;
+void sky_hashtable_default(zval* hashTable, std::string key, zval** dft){
+    if (Z_TYPE_P(hashTable) == IS_ARRAY){
+        *dft = zend_hash_find(Z_ARRVAL_P(hashTable), zend_string_init(key.c_str(), strlen(key.c_str()), 0));
+    }else{
+        ZVAL_NULL(*dft);
     }
 
-    return data;
+
+}
+
+int get_current_pid(){
+//    std::ostringstream strPid;
+//    strPid << getpid();
+//    int cpid;
+//    strPid >> cpid;
+//
+//    return cpid;
+    return getpid();
 }

@@ -36,6 +36,8 @@
 #include "sky_module.h"
 #include "segment.h"
 #include "zend_API.h"
+#include "sky_log.h"
+#include "sky_utils.h"
 
 void (*ori_execute_ex)(zend_execute_data *execute_data) = nullptr;
 
@@ -68,8 +70,11 @@ void sky_execute_ex(zend_execute_data *execute_data) {
                     if (strcmp(ZSTR_VAL(Z_OBJ_P(sw_response)->ce->name), "Swoole\\Http\\Response") == 0) {
                         swoole = true;
                         zval *z_fd = sky_read_property(sw_request, "fd", 0);
+
+                        sky_log("http请求->  pid: " + std::to_string(get_current_pid()));
                         SKYWALKING_G(is_swoole) = true;
                         request_id = Z_LVAL_P(z_fd);
+                        sky_log("http请求->  z_fd: " + std::to_string(request_id));
                         sky_request_init(sw_request, request_id);
                     }
                 }
@@ -101,39 +106,42 @@ void sky_execute_ex(zend_execute_data *execute_data) {
             zval jsonData;
             zval ext;
             zval *extData;
-            if(0 == sky_json_decode(traceData, &jsonData) && zend_array_count(Z_ARRVAL_P(jsonData)) < 10){
+            sky_log("抓取到rpc请求");
+            if(0 == sky_json_decode(traceData, &jsonData) && zend_array_count(Z_ARRVAL_P(&jsonData)) < 100){
+                sky_log("获取到data json数据，长度" + std::to_string(zend_array_count(Z_ARRVAL_P(&jsonData))));
                 ZVAL_NEW_ARR(&ext);
-                extData = sky_hashtable_default(&jsonData, "ext", &ext);
+                sky_hashtable_default(&jsonData, "ext", &extData);
+
+                swoft_json_rpc jsonRpcData;
+
+                //            php_var_dump(sky_hashtable_default(extData, "sw8", "")); // s8的支持，二期标准化sw8协议,molten端已经实现，这次先这样@210821
+
+                if (extData != NULL && Z_TYPE_P(extData) == IS_ARRAY && zend_array_count(Z_ARRVAL_P(extData)) > 0){
+                    jsonRpcData.ext.traceid = sky_hashtable_default(extData, "traceid", "");//extData["traceid"].asString();
+                    sky_log("获取到ext数据， 长度： " + std::to_string(zend_array_count(Z_ARRVAL_P(extData))));
+                    if (!jsonRpcData.ext.traceid.empty()){ // traceId isn't empty or ignore
+                        jsonRpcData.ext.spanid = sky_hashtable_default(extData, "spanid", "");//extData["spanid"].asString();
+                        jsonRpcData.ext.parentid = sky_hashtable_default(extData, "parentid", "0");//extData["parentid"].asString();
+                        jsonRpcData.ext.uri = sky_hashtable_default(extData, "uri", "");//extData["uri"].asString();
+                        jsonRpcData.ext.requestTime = sky_hashtable_default(extData, "requestTime", "");//extData["requestTime"].asString();
+                        jsonRpcData.ext.serviceName = sky_hashtable_default(extData, "serviceName", "");//extData["serviceName"].asString();
+                        jsonRpcData.ext.ServiceInstance = sky_hashtable_default(extData, "ServiceInstance", "0");//extData["ServiceInstance"].asString();
+
+                        jsonRpcData.method = sky_hashtable_default(&jsonData, "method", "");//jsonValue["method"].asString();
+                        jsonRpcData.jsonrpc = sky_hashtable_default(&jsonData, "jsonrpc", "");//jsonValue["jsonrpc"].asString();
+
+                        jsonRpcData.ext.address = swfHost + ":" + swfPort;
+                        jsonRpcData.ext.endpoint = swfHost + ":" + swfPort;
+
+                        // segments全局变量
+                        sky_rpc_init(request_id, jsonRpcData);
+                        swoole = true;
+                        SKYWALKING_G(is_swoole) = true;
+                    }else{
+                        sky_log("rpc请求，没有找到traceid, 忽略");
+                    }
+                }
             }
-
-            swoft_json_rpc jsonRpcData;
-
-//            php_var_dump(sky_hashtable_default(extData, "sw8", "")); // s8的支持，二期标准化sw8协议,molten端已经实现，这次先这样@210821
-            jsonRpcData.method = sky_hashtable_default(&jsonData, "method", "");//jsonValue["method"].asString();
-            jsonRpcData.jsonrpc = sky_hashtable_default(&jsonData, "jsonrpc", "");//jsonValue["jsonrpc"].asString();
-            if (zend_array_count(Z_ARRVAL_P(extData)) > 0){
-                jsonRpcData.ext.traceid = sky_hashtable_default(extData, "traceid", "");//extData["traceid"].asString();
-                jsonRpcData.ext.spanid = sky_hashtable_default(extData, "spanid", "");//extData["spanid"].asString();
-                jsonRpcData.ext.parentid = sky_hashtable_default(extData, "parentid", "0");//extData["parentid"].asString();
-                jsonRpcData.ext.uri = sky_hashtable_default(extData, "uri", "");//extData["uri"].asString();
-                jsonRpcData.ext.requestTime = sky_hashtable_default(extData, "requestTime", "");//extData["requestTime"].asString();
-                jsonRpcData.ext.serviceName = sky_hashtable_default(extData, "serviceName", "");//extData["serviceName"].asString();
-                jsonRpcData.ext.ServiceInstance = sky_hashtable_default(extData, "ServiceInstance", "0");//extData["ServiceInstance"].asString();
-            }else{
-                jsonRpcData.ext.traceid = ""; // 避免空指针
-            }
-
-            jsonRpcData.ext.address = swfHost + ":" + swfPort;
-            jsonRpcData.ext.endpoint = swfHost + ":" + swfPort;
-
-            // segments全局变量
-            sky_rpc_init(request_id, jsonRpcData);
-            swoole = true;
-            SKYWALKING_G(is_swoole) = true;
-            if (jsonRpcData.ext.traceid.empty()){
-                ignore_msg = true;
-            }
-
         }
     }
 
@@ -180,13 +188,8 @@ void sky_execute_ex(zend_execute_data *execute_data) {
         }
     }
 
-    // skywalking没有消息采样的配置，这里如果没有获取到上层的trace信息，忽略掉这次的trace消息
-    if (ignore_msg){
-        sky_request_destory(request_id);
-    }else{
-        if (swoole) {
-            sky_request_flush(sw_response, request_id);
-        }
+    if (swoole) {
+        sky_request_flush(sw_response, request_id);
     }
 }
 

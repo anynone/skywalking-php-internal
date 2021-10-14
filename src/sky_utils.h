@@ -48,4 +48,5 @@ int sky_json_decode( std::string json, zval* jsonZval);
 
 std::string sky_hashtable_default(zval* hashTable, std::string key, std::string dft);
 zend_long sky_hashtable_default(zval* hashTable, std::string key, int dft);
-zval* sky_hashtable_default(zval* hashTable, std::string key, zval* dft);
+void sky_hashtable_default(zval* hashTable, std::string key, zval** dft);
+int get_current_pid();
