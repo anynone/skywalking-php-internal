@@ -177,6 +177,7 @@ if test "$PHP_SKYWALKING" != "no"; then
       src/sky_plugin_error.cc \
       src/sky_plugin_grpc.cc \
       src/sky_plugin_hyperf_guzzle.cc \
+      src/sky_plugin_saber.cc \
       src/sky_plugin_predis.cc \
       src/sky_plugin_rabbit_mq.cc \
       src/sky_plugin_redis.cc \
