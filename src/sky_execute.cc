@@ -30,6 +30,7 @@
 #include "sky_plugin_yar.h"
 #include "sky_plugin_rabbit_mq.h"
 #include "sky_plugin_hyperf_guzzle.h"
+#include "sky_plugin_saber.h"
 #include "sky_plugin_swoole_curl.h"
 #include "sky_pdo.h"
 #include "sky_plugin_mysqli.h"
@@ -72,6 +73,7 @@ void sky_execute_ex(zend_execute_data *execute_data) {
                         zval *z_fd = sky_read_property(sw_request, "fd", 0);
 
                         sky_log("http请求->  pid: " + std::to_string(get_current_pid()));
+
                         SKYWALKING_G(is_swoole) = true;
                         request_id = Z_LVAL_P(z_fd);
                         sky_log("http请求->  z_fd: " + std::to_string(request_id));
@@ -173,7 +175,20 @@ void sky_execute_ex(zend_execute_data *execute_data) {
                    SKY_STRCMP(function_name, "__invoke")) {
             afterExec = false;
             span = sky_plugin_hyperf_guzzle(execute_data, class_name, function_name);
+        }else if (SKY_STRCMP(class_name, "Swlib\\Saber") && SKY_STRCMP(function_name, "request")) {
+//            php_printf(class_name);
+//            php_printf("\n");
+//            php_printf(function_name);
+//            php_printf("\n");
+//            php_printf("===================================");
+//            php_printf("\n");
+//            php_printf("\n");
+            afterExec = false;
+            span = sky_plugin_saber(execute_data, class_name, function_name);
+
         }
+
+
     } else if (function_name != nullptr) {
         if (SKY_STRCMP(function_name, "swoole_curl_exec")) {
             afterExec = false;
