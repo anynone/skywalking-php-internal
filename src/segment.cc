@@ -48,7 +48,10 @@ Segment::Segment(const std::string &serviceId, const std::string &serviceInstanc
 }
 
 Segment::~Segment() {
-    delete bag;
+    if (bag != nullptr){
+        delete bag;
+    }
+
     for (auto span: spans) {
         delete span;
     }

@@ -162,6 +162,12 @@ PHP_MINIT_FUNCTION (skywalking) {
 	ZEND_INIT_MODULE_GLOBALS(skywalking, php_skywalking_init_globals, NULL);
 	REGISTER_INI_ENTRIES();
 
+//    std::ostringstream strPid;
+//    strPid << getpid();
+//    if (getpid() != 1){
+//        return SUCCESS; // 非主进程返回
+//    }
+
 	if (SKYWALKING_G(enable)) {
 
         int protection = PROT_READ | PROT_WRITE;

@@ -46,6 +46,8 @@ extern void (*orig_curl_setopt_array)(INTERNAL_FUNCTION_PARAMETERS);
 extern void (*orig_curl_close)(INTERNAL_FUNCTION_PARAMETERS);
 
 void sky_module_init() {
+    std::ostringstream strPid;
+    strPid << getpid();
     ori_execute_ex = zend_execute_ex;
     zend_execute_ex = sky_execute_ex;
 
@@ -87,19 +89,15 @@ void sky_module_init() {
 
     sprintf(s_info->mq_name, "skywalking_queue_%d", getpid());
 
-    std::ostringstream strPid;
-    strPid << getpid();
-    if (getpid() != 1){
-        return; // 非主进程返回
-    }
-    sky_log("log 95: pid = " + strPid.str());
+
+//    sky_log("log 95: pid = " + strPid.str());
 
     try {
         boost::interprocess::message_queue::remove(s_info->mq_name);
 
         boost::interprocess::message_queue(
-                boost::interprocess::open_or_create,
-//        boost::interprocess::create_only,
+//                boost::interprocess::open_or_create,
+                boost::interprocess::create_only,
                 s_info->mq_name,
                 10240,
                 SKYWALKING_G(mq_max_message_length),
@@ -110,14 +108,19 @@ void sky_module_init() {
         return;
     }
 
-    sky_log("log 114: pid = " + strPid.str());
+    std::string queue_name = s_info->mq_name;
+    sky_log("module init : pid = " + strPid.str() + ", queue_name: " + queue_name);
     new Manager(opt, s_info);
 }
 
 void sky_module_cleanup() {
     char mq_name[32];
+
     sprintf(mq_name, "skywalking_queue_%d", getpid());
+
+    sky_log("module clean: queue_name: " + std::string(mq_name));
     if (strcmp(s_info->mq_name, mq_name) == 0) {
+        sky_log("removed");
         boost::interprocess::message_queue::remove(s_info->mq_name);
     }
 }
@@ -246,7 +249,6 @@ void sky_rpc_init(uint64_t request_id, swoft_json_rpc rpcData) {
 //        header = "";
     }
 
-
     php_printf(header.c_str());
     auto *segment = new Segment(s_info->service, s_info->service_instance, SKYWALKING_G(version), header);
     auto const result = segments->insert(std::pair<uint64_t, Segment *>(request_id, segment));
@@ -279,7 +281,9 @@ void sky_request_destory(uint64_t request_id){
 
 void sky_request_flush(zval *response, uint64_t request_id) {
     auto *segment = sky_get_segment(nullptr, request_id);
-
+    if (segment == nullptr){
+        return;
+    }
     if (response == nullptr) {
         segment->setStatusCode(SG(sapi_headers).http_response_code);
     }

@@ -144,6 +144,7 @@ void Manager::login(const ManagerOptions &options, struct service_info *info) {
         stub->keepAlive(&context, ping, &commands);
 
         std::this_thread::sleep_for(std::chrono::seconds(3));
+        sky_log("heartbeat success");
     }
 }
 
@@ -168,6 +169,13 @@ void Manager::login(const ManagerOptions &options, struct service_info *info) {
                 size_t msg_size;
                 unsigned msg_priority;
                 mq.receive(&data[0], data.size(), msg_size, msg_priority);
+                sky_log("接收到消息，准备上报");
+                if(msg_size < 10){ // 不会有小于10的，这里想要过滤异常的数据
+                    sky_log("error msg");
+                    continue;
+                }
+                std::size_t queue_size = mq.get_num_msg();
+
                 data.resize(msg_size);
 
                 std::string json_str;
@@ -186,6 +194,7 @@ void Manager::login(const ManagerOptions &options, struct service_info *info) {
                 }
             }
         } catch (boost::interprocess::interprocess_exception &ex) {
+            sky_log("queue get error");
             sky_log(ex.what());
             php_error(E_WARNING, "%s %s", "[skywalking] open queue fail ", ex.what());
         }
