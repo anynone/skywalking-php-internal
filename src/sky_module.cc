@@ -296,15 +296,22 @@ void sky_request_flush(zval *response, uint64_t request_id) {
         sky_log("message is too big: " + std::to_string(msg_length) + ", mq_max_message_length=" + std::to_string(max_length));
         return;
     }
-
+    sky_log("正在写入队列" + std::string(s_info->mq_name));
     try {
         boost::interprocess::message_queue mq(
-                boost::interprocess::open_only,
-                s_info->mq_name
+                boost::interprocess::open_or_create,
+//                boost::interprocess::open_only,
+                s_info->mq_name,
+                10240,
+                SKYWALKING_G(mq_max_message_length),
+                boost::interprocess::permissions(0666)
         );
         if (!mq.try_send(msg.data(), msg.size(), 0)) {
             sky_log("sky_request_flush message_queue is fulled");
+        }else{
+            sky_log("成功写入队列"+ std::string(s_info->mq_name));
         }
+
     } catch (boost::interprocess::interprocess_exception &ex) {
         sky_log("sky_request_flush message_queue ex" + std::string(ex.what()));
         php_error(E_WARNING, "%s %s", "[skywalking] open queue fail ", ex.what());
