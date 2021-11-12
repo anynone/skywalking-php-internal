@@ -145,6 +145,7 @@ void Manager::login(const ManagerOptions &options, struct service_info *info) {
 
         std::this_thread::sleep_for(std::chrono::seconds(3));
         sky_log("heartbeat success");
+
     }
 }
 

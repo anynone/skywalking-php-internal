@@ -87,7 +87,8 @@ void sky_module_init() {
     opt.cert_chain = SKYWALKING_G(grpc_tls_pem_cert_chain);
     opt.authentication = SKYWALKING_G(authentication);
 
-    sprintf(s_info->mq_name, "skywalking_queue_%d", getpid());
+//    sprintf(s_info->mq_name, "skywalking_queue_%d", getpid());
+    sprintf(s_info->mq_name, "skywalking_queue_tanikawa");
 
 
 //    sky_log("log 95: pid = " + strPid.str());
@@ -96,10 +97,10 @@ void sky_module_init() {
         boost::interprocess::message_queue::remove(s_info->mq_name);
 
         boost::interprocess::message_queue(
-//                boost::interprocess::open_or_create,
-                boost::interprocess::create_only,
+                boost::interprocess::open_or_create,
+//                boost::interprocess::create_only,
                 s_info->mq_name,
-                10240,
+                5120,
                 SKYWALKING_G(mq_max_message_length),
                 boost::interprocess::permissions(0666)
         );
@@ -119,10 +120,11 @@ void sky_module_cleanup() {
     sprintf(mq_name, "skywalking_queue_%d", getpid());
 
     sky_log("module clean: queue_name: " + std::string(mq_name));
-    if (strcmp(s_info->mq_name, mq_name) == 0) {
-        sky_log("removed");
-        boost::interprocess::message_queue::remove(s_info->mq_name);
-    }
+    // 频繁sigbus，统一使用相同共享内存名称，并且不再不再销毁，随docker停止消除
+//    if (strcmp(s_info->mq_name, mq_name) == 0 && getpid() != 1) {
+//        sky_log("removed");
+//        boost::interprocess::message_queue::remove(s_info->mq_name);
+//    }
 }
 
 void sky_request_init(zval *request, uint64_t request_id) {
@@ -281,6 +283,7 @@ void sky_request_destory(uint64_t request_id){
 
 void sky_request_flush(zval *response, uint64_t request_id) {
     auto *segment = sky_get_segment(nullptr, request_id);
+
     if (segment == nullptr){
         return;
     }
@@ -299,12 +302,8 @@ void sky_request_flush(zval *response, uint64_t request_id) {
     sky_log("正在写入队列" + std::string(s_info->mq_name));
     try {
         boost::interprocess::message_queue mq(
-                boost::interprocess::open_or_create,
-//                boost::interprocess::open_only,
-                s_info->mq_name,
-                10240,
-                SKYWALKING_G(mq_max_message_length),
-                boost::interprocess::permissions(0666)
+                boost::interprocess::open_only,
+                s_info->mq_name
         );
         if (!mq.try_send(msg.data(), msg.size(), 0)) {
             sky_log("sky_request_flush message_queue is fulled");
