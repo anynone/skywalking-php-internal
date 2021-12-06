@@ -111,7 +111,12 @@ void sky_module_init() {
 
     std::string queue_name = s_info->mq_name;
     sky_log("module init : pid = " + strPid.str() + ", queue_name: " + queue_name);
-    new Manager(opt, s_info);
+
+    // swoole 容器场景多次模块初始化会有问题,限定在1号进程才启用队列消费者
+    if (strPid.str() == "1"){
+        sky_log("consumer init : pid = " + strPid.str() + "\n");
+        new Manager(opt, s_info);
+    }
 }
 
 void sky_module_cleanup() {
