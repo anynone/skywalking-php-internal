@@ -100,8 +100,8 @@ void sky_module_init() {
 //        boost::interprocess::message_queue::remove(s_info->mq_name);
 
         boost::interprocess::message_queue(
-//                boost::interprocess::open_or_create,
-                boost::interprocess::create_only,
+                boost::interprocess::open_or_create,
+//                boost::interprocess::create_only,
                 s_info->mq_name,
                 5120,
                 SKYWALKING_G(mq_max_message_length),
