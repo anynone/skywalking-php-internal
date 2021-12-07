@@ -64,7 +64,7 @@ Manager::Manager(const ManagerOptions &options, struct service_info *info) {
 }
 
 void Manager::login(const ManagerOptions &options, struct service_info *info) {
-
+    sky_log("manager login");
     std::shared_ptr<grpc::Channel> channel(grpc::CreateChannel(options.grpc, getCredentials(options)));
     std::unique_ptr<ManagementService::Stub> stub(ManagementService::NewStub(channel));
 
@@ -130,7 +130,7 @@ void Manager::login(const ManagerOptions &options, struct service_info *info) {
 [[noreturn]] void Manager::heartbeat(const ManagerOptions &options, const std::string &serviceInstance) {
     std::shared_ptr<grpc::Channel> channel(grpc::CreateChannel(options.grpc, getCredentials(options)));
     std::unique_ptr<ManagementService::Stub> stub(ManagementService::NewStub(channel));
-
+    sky_log("heartbeat run");
     while (true) {
         grpc::ClientContext context;
         InstancePingPkg ping;
@@ -150,6 +150,7 @@ void Manager::login(const ManagerOptions &options, struct service_info *info) {
 }
 
 [[noreturn]] void Manager::consumer(const ManagerOptions &options) {
+    sky_log("consumer func");
     while (true) {
         std::shared_ptr<grpc::Channel> channel(grpc::CreateChannel(options.grpc, getCredentials(options)));
         std::unique_ptr<TraceSegmentReportService::Stub> stub(TraceSegmentReportService::NewStub(channel));
@@ -159,16 +160,19 @@ void Manager::login(const ManagerOptions &options, struct service_info *info) {
         if (!options.authentication.empty()) {
             context.AddMetadata("authentication", options.authentication);
         }
+        sky_log("link grpc");
         auto writer = stub->collect(&context, &commands);
 
         try {
-            boost::interprocess::message_queue mq(boost::interprocess::open_only, s_info->mq_name);
 
+            boost::interprocess::message_queue mq(boost::interprocess::open_only, s_info->mq_name);
+            sky_log("监听队列消息: '" + std::string(s_info->mq_name) + "'");
             while (true) {
                 std::string data;
                 data.resize(SKYWALKING_G(mq_max_message_length));
                 size_t msg_size;
                 unsigned msg_priority;
+                sky_log("正在监听: '" + std::string(s_info->mq_name)+"'");
                 mq.receive(&data[0], data.size(), msg_size, msg_priority);
                 sky_log("接收到消息，准备上报");
                 if(msg_size < 10){ // 不会有小于10的，这里想要过滤异常的数据

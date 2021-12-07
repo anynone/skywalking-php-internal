@@ -87,18 +87,21 @@ void sky_module_init() {
     opt.cert_chain = SKYWALKING_G(grpc_tls_pem_cert_chain);
     opt.authentication = SKYWALKING_G(authentication);
 
-//    sprintf(s_info->mq_name, "skywalking_queue_%d", getpid());
-    sprintf(s_info->mq_name, "skywalking_queue_tanikawa");
+    if (std::string(sapi_module.name) == "cli") {
+        sprintf(s_info->mq_name, "skywalking_queue_tanikawa");
+    }else{
+        sprintf(s_info->mq_name, "skywalking_queue_%d", getpid());
+    }
 
 
 //    sky_log("log 95: pid = " + strPid.str());
 
     try {
-        boost::interprocess::message_queue::remove(s_info->mq_name);
+//        boost::interprocess::message_queue::remove(s_info->mq_name);
 
         boost::interprocess::message_queue(
-                boost::interprocess::open_or_create,
-//                boost::interprocess::create_only,
+//                boost::interprocess::open_or_create,
+                boost::interprocess::create_only,
                 s_info->mq_name,
                 5120,
                 SKYWALKING_G(mq_max_message_length),
@@ -106,17 +109,23 @@ void sky_module_init() {
         );
     } catch (boost::interprocess::interprocess_exception &ex) {
         php_error(E_WARNING, "%s %s", "[skywalking] create queue fail ", ex.what());
-        return;
+//        return;SSS
     }
 
     std::string queue_name = s_info->mq_name;
     sky_log("module init : pid = " + strPid.str() + ", queue_name: " + queue_name);
+    char *module_name;
+//    sprintf(module_name, "%s", sapi_module.name);
+    sky_log("module init module type: " + std::string(sapi_module.name));
 
     // swoole 容器场景多次模块初始化会有问题,限定在1号进程才启用队列消费者
-    if (strPid.str() == "1"){
+    if (std::string(sapi_module.name) != "cli" || strPid.str() == "1"){
         sky_log("consumer init : pid = " + strPid.str() + "\n");
         new Manager(opt, s_info);
     }
+
+//    sky_log("process name" + get_current_process_name());
+
 }
 
 void sky_module_cleanup() {
@@ -126,10 +135,15 @@ void sky_module_cleanup() {
 
     sky_log("module clean: queue_name: " + std::string(mq_name));
     // 频繁sigbus，统一使用相同共享内存名称，并且不再不再销毁，随docker停止消除
-//    if (strcmp(s_info->mq_name, mq_name) == 0 && getpid() != 1) {
+//    if (strcmp(s_info->mq_name, mq_name) == 0 && getpid() == 1) {
 //        sky_log("removed");
 //        boost::interprocess::message_queue::remove(s_info->mq_name);
 //    }
+
+    if (std::string(sapi_module.name) != "cli") {
+        sky_log("queue removed");
+        boost::interprocess::message_queue::remove(s_info->mq_name);
+    }
 }
 
 void sky_request_init(zval *request, uint64_t request_id) {
