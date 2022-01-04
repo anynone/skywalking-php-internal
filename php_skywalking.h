@@ -144,6 +144,8 @@ ZEND_BEGIN_MODULE_GLOBALS(skywalking)
 
     // message queue
     int mq_max_message_length;
+
+    zend_bool cli_enable;
 ZEND_END_MODULE_GLOBALS(skywalking)
 
 extern ZEND_DECLARE_MODULE_GLOBALS(skywalking);

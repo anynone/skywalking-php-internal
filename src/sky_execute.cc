@@ -161,7 +161,7 @@ void sky_execute_ex(zend_execute_data *execute_data) {
     }
 
     Span *span = nullptr;
-
+//    sky_log("log debug2: ");
     if (class_name != nullptr && function_name != nullptr) {
         if (strcmp(function_name, "executeCommand") == 0) {
             span = sky_predis(execute_data, class_name, function_name);
@@ -190,12 +190,13 @@ void sky_execute_ex(zend_execute_data *execute_data) {
 
 
     } else if (function_name != nullptr) {
+//        sky_log("log debug3: ");
         if (SKY_STRCMP(function_name, "swoole_curl_exec")) {
             afterExec = false;
             sky_plugin_swoole_curl(execute_data, "", function_name);
         }
     }
-
+//    sky_log("log debug202: ");
     if (afterExec) {
         ori_execute_ex(execute_data);
         if (span != nullptr) {
@@ -204,6 +205,7 @@ void sky_execute_ex(zend_execute_data *execute_data) {
     }
 
     if (swoole) {
+//        sky_log("log debug1:211 ");
         sky_request_flush(sw_response, request_id);
     }
 }
@@ -247,9 +249,13 @@ void sky_execute_internal(zend_execute_data *execute_data, zval *return_value) {
             }
         }
     }
+//    sky_log("11111111111111111111111111111111111111111111");
+
 
     Span *span = nullptr;
     if (class_name != nullptr) {
+//        sky_log(class_name);
+//        sky_log(function_name);
         if (strcmp(class_name, "PDO") == 0 || strcmp(class_name, "PDOStatement") == 0) {
             span = sky_pdo(execute_data, class_name, function_name);
         } else if (strcmp(class_name, "mysqli") == 0){
@@ -268,7 +274,7 @@ void sky_execute_internal(zend_execute_data *execute_data, zval *return_value) {
             span = sky_plugin_mysqli(execute_data, "", function_name);
         }
     }
-
+//    sky_log("222222222222222222222222222222");
     if (ori_execute_internal) {
         ori_execute_internal(execute_data, return_value);
     } else {

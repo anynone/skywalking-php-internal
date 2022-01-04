@@ -46,8 +46,15 @@ extern void (*orig_curl_setopt_array)(INTERNAL_FUNCTION_PARAMETERS);
 extern void (*orig_curl_close)(INTERNAL_FUNCTION_PARAMETERS);
 
 void sky_module_init() {
+
     std::ostringstream strPid;
     strPid << getpid();
+
+    std::ostringstream strPPid;
+    strPPid << getppid();
+    sky_log("父进程 : pid = " + strPPid.str());
+
+
     ori_execute_ex = zend_execute_ex;
     zend_execute_ex = sky_execute_ex;
 
@@ -87,11 +94,12 @@ void sky_module_init() {
     opt.cert_chain = SKYWALKING_G(grpc_tls_pem_cert_chain);
     opt.authentication = SKYWALKING_G(authentication);
 
-    if (std::string(sapi_module.name) == "cli") {
-        sprintf(s_info->mq_name, "skywalking_queue_tanikawa");
-    }else{
-        sprintf(s_info->mq_name, "skywalking_queue_%d", getpid());
-    }
+    sprintf(s_info->mq_name, "skywalking_queue_tanikawa");
+//    if (std::string(sapi_module.name) == "cli") {
+//        sprintf(s_info->mq_name, "skywalking_queue_tanikawa");
+//    }else{
+//        sprintf(s_info->mq_name, "skywalking_queue_%d", getpid());
+//    }
 
 
 //    sky_log("log 95: pid = " + strPid.str());
@@ -119,7 +127,8 @@ void sky_module_init() {
     sky_log("module init module type: " + std::string(sapi_module.name));
 
     // swoole 容器场景多次模块初始化会有问题,限定在1号进程才启用队列消费者
-    if (std::string(sapi_module.name) != "cli" || strPid.str() == "1"){
+    // php-fpm方式会有fpm进程数量的消费者处理消息
+    if (!(std::string(sapi_module.name) == "cli" && strPid.str() != "1")){
         sky_log("consumer init : pid = " + strPid.str() + "\n");
         new Manager(opt, s_info);
     }
@@ -140,14 +149,15 @@ void sky_module_cleanup() {
 //        boost::interprocess::message_queue::remove(s_info->mq_name);
 //    }
 
-    if (std::string(sapi_module.name) != "cli") {
-        sky_log("queue removed");
-        boost::interprocess::message_queue::remove(s_info->mq_name);
-    }
+//    if (std::string(sapi_module.name) != "cli") {
+//        sky_log("queue removed");
+//        boost::interprocess::message_queue::remove(s_info->mq_name);
+//    }
 }
 
 void sky_request_init(zval *request, uint64_t request_id) {
     sky_log("http请求->  sky_request_init: ...");
+    sky_log(sapi_module.name);
     array_init(&SKYWALKING_G(curl_header));
 
     zval *carrier = nullptr;
@@ -224,7 +234,7 @@ void sky_request_init(zval *request, uint64_t request_id) {
         segments = static_cast<std::map<uint64_t, Segment *> *>SKYWALKING_G(segment);
     }
     sky_log("初始化segment");
-    auto *segment = new Segment(s_info->service, s_info->service_instance, SKYWALKING_G(version), header);
+    auto *segment = new Segment(SKYWALKING_G(app_code), s_info->service_instance, SKYWALKING_G(version), header);
     sky_log("segment写入到请求id segment数组");
     auto const result = segments->insert(std::pair<uint64_t, Segment *>(request_id, segment));
     if (not result.second) {
@@ -241,6 +251,7 @@ void sky_request_init(zval *request, uint64_t request_id) {
     if (request_method != NULL) {
         span->addTag("http.method", Z_STRVAL_P(request_method));
     }
+
     sky_log("初始化链路信息初始化完成");
 }
 
@@ -309,15 +320,17 @@ void sky_request_flush(zval *response, uint64_t request_id) {
     if (response == nullptr) {
         segment->setStatusCode(SG(sapi_headers).http_response_code);
     }
-    std::string msg = segment->marshal();
+    std::string msg = segment->marshal(SKYWALKING_G(app_code));
     delete segment;
 
     int msg_length = static_cast<int>(msg.size());
+
     int max_length = SKYWALKING_G(mq_max_message_length);
     if (msg_length > max_length) {
         sky_log("message is too big: " + std::to_string(msg_length) + ", mq_max_message_length=" + std::to_string(max_length));
         return;
     }
+
     sky_log("正在写入队列" + std::string(s_info->mq_name));
     try {
         boost::interprocess::message_queue mq(
@@ -332,6 +345,6 @@ void sky_request_flush(zval *response, uint64_t request_id) {
 
     } catch (boost::interprocess::interprocess_exception &ex) {
         sky_log("sky_request_flush message_queue ex" + std::string(ex.what()));
-        php_error(E_WARNING, "%s %s", "[skywalking] open queue fail ", ex.what());
+//        php_error(E_WARNING, "%s %s", "[skywalking] open queue fail ", ex.what());
     }
 }

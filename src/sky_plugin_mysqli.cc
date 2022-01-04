@@ -22,20 +22,32 @@
 #include "sky_utils.h"
 #include "php_skywalking.h"
 
+#include "sky_log.h"
+
 #include "ext/mysqli/php_mysqli_structs.h"
 
 void sky_mysqli_peer(Span *span, mysqli_object *mysqli) {
+
     MYSQLI_RESOURCE *my_res = (MYSQLI_RESOURCE *) mysqli->ptr;
+    sky_log("bug sky_plugin_mysqli.cc 32");
     if (my_res && my_res->ptr) {
+        sky_log("bug sky_plugin_mysqli.cc 34");
         MY_MYSQL *mysql = (MY_MYSQL *) my_res->ptr;
         if (mysql->mysql) {
 #if PHP_VERSION_ID >= 70100
-            std::string host = mysql->mysql->data->hostname.s;
+            std::string host = "127.0.0.1";
+            if(mysql->mysql->data->hostname.l > 0){
+                sky_log("binggo1");
+                host = mysql->mysql->data->hostname.s;
+            }
 #else
             std::string host = mysql->mysql->data->host;
 #endif
+            sky_log("bug sky_plugin_mysqli.cc 44");
             span->addTag("db.type", "mysql");
+            sky_log("bug sky_plugin_mysqli.cc 45");
             span->setPeer(host + ":" + std::to_string(mysql->mysql->data->port));
+            sky_log("bug sky_plugin_mysqli.cc 47");
         }
     }
 }
@@ -50,11 +62,16 @@ Span *sky_plugin_mysqli(zend_execute_data *execute_data, const std::string &clas
 
             zval *statement = nullptr;
             if (class_name == "mysqli") {
+                sky_log("bug sky_plugin_mysqli.cc 55");
                 span->setOperationName(class_name + "->" + function_name);
+                sky_log("bug sky_plugin_mysqli.cc 57");
                 if (arg_count) {
+                    sky_log("bug sky_plugin_mysqli.cc 59");
                     statement = ZEND_CALL_ARG(execute_data, 1);
                 }
+                sky_log("bug sky_plugin_mysqli.cc 62");
                 mysqli = (mysqli_object *) Z_MYSQLI_P(&(execute_data->This));
+                sky_log("bug sky_plugin_mysqli.cc 64");
             } else { //is procedural
                 span->setOperationName(function_name);
                 if (arg_count > 1) {
@@ -65,14 +82,17 @@ Span *sky_plugin_mysqli(zend_execute_data *execute_data, const std::string &clas
                     mysqli = (mysqli_object *) Z_MYSQLI_P(obj);
                 }
             }
-
+            sky_log("bug sky_plugin_mysqli.cc 75");
             if (statement != nullptr && Z_TYPE_P(statement) == IS_STRING) {
+                sky_log("bug sky_plugin_mysqli.cc 77");
                 span->addTag("db.statement", Z_STRVAL_P(statement));
             }
+            sky_log("bug sky_plugin_mysqli.cc 80");
             if (mysqli != nullptr){
+                sky_log("bug sky_plugin_mysqli.cc 82");
                 sky_mysqli_peer(span, mysqli);
             }
-
+            sky_log("bug sky_plugin_mysqli.cc 85");
             return span;
     }
 

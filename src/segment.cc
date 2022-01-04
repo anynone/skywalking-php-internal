@@ -59,7 +59,7 @@ Segment::~Segment() {
     spans.shrink_to_fit();
 }
 
-std::string Segment::marshal() {
+std::string Segment::marshal(std::string serviceName) {
     if (!spans.empty()) {
         auto span = spans.front();
         span->setEndTIme();
@@ -116,7 +116,7 @@ std::string Segment::marshal() {
         _span->set_skipanalysis(span->getSkipAnalysis());
     }
 
-    msg.set_service(_serviceId);
+    msg.set_service(serviceName);
     msg.set_serviceinstance(_serviceInstanceId);
     msg.set_issizelimited(false);
     return msg.SerializeAsString();

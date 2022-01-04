@@ -39,7 +39,7 @@
 #include "src/sky_module.h"
 #include "src/segment.h"
 #include "sys/mman.h"
-
+#include "sky_log.h"
 #ifdef MYSQLI_USE_MYSQLND
 #include "ext/mysqli/php_mysqli_structs.h"
 #endif
@@ -65,6 +65,7 @@ PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("skywalking.error_handler_enable", "0", PHP_INI_ALL, OnUpdateBool, error_handler_enable, zend_skywalking_globals, skywalking_globals)
 
     STD_PHP_INI_ENTRY("skywalking.mq_max_message_length", "20480", PHP_INI_ALL, OnUpdateLong, mq_max_message_length, zend_skywalking_globals, skywalking_globals)
+    STD_PHP_INI_ENTRY("skywalking.cli_enable", "0", PHP_INI_ALL, OnUpdateBool, cli_enable, zend_skywalking_globals, skywalking_globals)
 
 PHP_INI_END()
 
@@ -167,9 +168,17 @@ PHP_MINIT_FUNCTION (skywalking) {
 //    if (getpid() != 1){
 //        return SUCCESS; // 非主进程返回
 //    }
+    std::ostringstream strPid;
+    strPid << getpid();
 
+    std::ostringstream strPPid;
+    strPPid << getppid();
+    sky_log("父进程 : pid = " + strPPid.str() + ", 进程pid: "  + strPid.str() );
+//    return SUCCESS;
 	if (SKYWALKING_G(enable)) {
-
+	    if (!SKYWALKING_G(cli_enable) && strcasecmp("fpm-fcgi", sapi_module.name) != 0) {
+            return SUCCESS;
+	    }
         int protection = PROT_READ | PROT_WRITE;
         int visibility = MAP_SHARED | MAP_ANONYMOUS;
 
@@ -184,6 +193,9 @@ PHP_MSHUTDOWN_FUNCTION (skywalking) {
     UNREGISTER_INI_ENTRIES();
 
     if (SKYWALKING_G(enable)) {
+        if (!SKYWALKING_G(cli_enable) && strcasecmp("fpm-fcgi", sapi_module.name) != 0) {
+            return SUCCESS;
+        }
         sky_module_cleanup();
     }
 
@@ -195,6 +207,7 @@ PHP_RINIT_FUNCTION(skywalking)
 #if defined(COMPILE_DL_SKYWALKING) && defined(ZTS)
 	ZEND_TSRMLS_CACHE_UPDATE();
 #endif
+
     if (SKYWALKING_G(enable)) {
         if (strcasecmp("fpm-fcgi", sapi_module.name) == 0) {
             if (strlen(s_info->service_instance) == 0) {

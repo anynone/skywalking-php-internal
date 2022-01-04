@@ -38,7 +38,7 @@ public:
 
     Span *firstSpan();
 
-    std::string marshal();
+    std::string marshal(std::string serviceName);
 
     void setStatusCode(int code);
 
