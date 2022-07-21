@@ -36,18 +36,18 @@ void sky_mysqli_peer(Span *span, mysqli_object *mysqli) {
         if (mysql->mysql) {
 #if PHP_VERSION_ID >= 70100
             std::string host = "127.0.0.1";
-            if(mysql->mysql->data->hostname.l > 0){
-                sky_log("binggo1");
-                host = mysql->mysql->data->hostname.s;
-            }
+//            if(mysql->mysql->data->hostname.l > 0){
+//                sky_log("binggo1");
+//                host = mysql->mysql->data->hostname.s;
+//            }
 #else
             std::string host = mysql->mysql->data->host;
 #endif
-            sky_log("bug sky_plugin_mysqli.cc 44");
+//            sky_log("bug sky_plugin_mysqli.cc 44");
             span->addTag("db.type", "mysql");
-            sky_log("bug sky_plugin_mysqli.cc 45");
-            span->setPeer(host + ":" + std::to_string(mysql->mysql->data->port));
-            sky_log("bug sky_plugin_mysqli.cc 47");
+//            sky_log("bug sky_plugin_mysqli.cc 45");
+            span->setPeer(host);
+//            sky_log("bug sky_plugin_mysqli.cc 47");
         }
     }
 }

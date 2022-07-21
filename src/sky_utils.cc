@@ -233,8 +233,6 @@ void sky_hashtable_default(zval* hashTable, std::string key, zval** dft){
     }else{
         ZVAL_NULL(*dft);
     }
-
-
 }
 
 int get_current_pid(){
@@ -245,4 +243,22 @@ int get_current_pid(){
 //
 //    return cpid;
     return getpid();
+}
+
+bool string_delim_contains(std::string haystack, const std::string str, const char* delim)
+{
+    size_t end = 0;
+    size_t start = 0;
+    while ((start = haystack.find_first_not_of(delim, end)) != std::string::npos)
+    {
+        end = haystack.find(delim, start);
+        std::string  temp = haystack.substr(start, end - start);
+//        php_printf("spint-temp: %s\n", temp.c_str());
+//        php_printf("spint-str: %s\n", str.c_str());
+        if (starts_with(str.c_str(), temp.c_str())){
+            return true;
+        }
+    }
+
+    return false;
 }

@@ -21,6 +21,10 @@
 #include "sky_module.h"
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <fstream>
+#include <string>
+#include <sstream>
+#include <ostream>
+
 #include "segment.h"
 #include "sky_utils.h"
 #include "sky_plugin_curl.h"
@@ -64,7 +68,8 @@ void sky_module_init() {
     if (SKYWALKING_G(error_handler_enable)) {
         sky_plugin_error_init();
     }
-    
+
+
     // bind curl
     zend_function *old_function;
     if ((old_function = SKY_OLD_FN("curl_exec")) != nullptr) {
@@ -106,7 +111,6 @@ void sky_module_init() {
 
     try {
 //        boost::interprocess::message_queue::remove(s_info->mq_name);
-
         boost::interprocess::message_queue(
                 boost::interprocess::open_or_create,
 //                boost::interprocess::create_only,
@@ -116,8 +120,8 @@ void sky_module_init() {
                 boost::interprocess::permissions(0666)
         );
     } catch (boost::interprocess::interprocess_exception &ex) {
+        sky_log("message create error init : pid = " + std::string(ex.what()));
         php_error(E_WARNING, "%s %s", "[skywalking] create queue fail ", ex.what());
-//        return;SSS
     }
 
     std::string queue_name = s_info->mq_name;
@@ -128,10 +132,10 @@ void sky_module_init() {
 
     // swoole 容器场景多次模块初始化会有问题,限定在1号进程才启用队列消费者
     // php-fpm方式会有fpm进程数量的消费者处理消息
-    if (!(std::string(sapi_module.name) == "cli" && strPid.str() != "1")){
+//    if (!(std::string(sapi_module.name) == "cli" && strPid.str() != "1")){
         sky_log("consumer init : pid = " + strPid.str() + "\n");
         new Manager(opt, s_info);
-    }
+//    }
 
 //    sky_log("process name" + get_current_process_name());
 
@@ -155,7 +159,7 @@ void sky_module_cleanup() {
 //    }
 }
 
-void sky_request_init(zval *request, uint64_t request_id) {
+bool sky_request_init(zval *request, uint64_t request_id) {
     sky_log("http请求->  sky_request_init: ...");
     sky_log(sapi_module.name);
     array_init(&SKYWALKING_G(curl_header));
@@ -183,7 +187,13 @@ void sky_request_init(zval *request, uint64_t request_id) {
         sky_log("header: " + header);
         uri = Z_STRVAL_P(zend_hash_str_find(Z_ARRVAL_P(swoole_server), "request_uri", sizeof("request_uri") - 1));
         sky_log("uri: " + uri);
+        std::string gray_list = SKYWALKING_G(trace_gray_list);
 
+        sky_log("灰度列表:" + gray_list);
+        if(!gray_list.empty() && !string_delim_contains(gray_list, uri, ",")){
+            sky_log("不在灰度列表,返回false");
+            return false;
+        }
         peer_val = zend_hash_str_find(Z_ARRVAL_P(swoole_header), "host", sizeof("host") - 1);
         if (peer_val != nullptr) {
             peer = Z_STRVAL_P(peer_val);
@@ -240,6 +250,7 @@ void sky_request_init(zval *request, uint64_t request_id) {
     if (not result.second) {
         result.first->second = segment;
     }
+
     sky_log("segment下新建span");
     auto *span = segments->at(request_id)->createSpan(SkySpanType::Entry, SkySpanLayer::Http, 8001);
     span->setOperationName(uri);
@@ -253,6 +264,7 @@ void sky_request_init(zval *request, uint64_t request_id) {
     }
 
     sky_log("初始化链路信息初始化完成");
+    return true;
 }
 
 void sky_rpc_init(uint64_t request_id, swoft_json_rpc rpcData) {

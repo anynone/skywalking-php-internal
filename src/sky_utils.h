@@ -50,3 +50,4 @@ std::string sky_hashtable_default(zval* hashTable, std::string key, std::string 
 zend_long sky_hashtable_default(zval* hashTable, std::string key, int dft);
 void sky_hashtable_default(zval* hashTable, std::string key, zval** dft);
 int get_current_pid();
+bool string_delim_contains(std::string haystack, const std::string str, const char* delim);

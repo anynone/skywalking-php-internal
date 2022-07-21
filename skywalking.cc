@@ -33,6 +33,7 @@
 
 #include <src/sky_shm.h>
 #include <fstream>
+#include <sstream>
 #include "php_skywalking.h"
 
 #include "src/sky_utils.h"
@@ -66,6 +67,8 @@ PHP_INI_BEGIN()
 
     STD_PHP_INI_ENTRY("skywalking.mq_max_message_length", "20480", PHP_INI_ALL, OnUpdateLong, mq_max_message_length, zend_skywalking_globals, skywalking_globals)
     STD_PHP_INI_ENTRY("skywalking.cli_enable", "0", PHP_INI_ALL, OnUpdateBool, cli_enable, zend_skywalking_globals, skywalking_globals)
+    //链路灰名单，uri使用逗号分隔。如果不是空的表示灰度发布，只有填入列表的uri会走链路(前缀匹配)
+    STD_PHP_INI_ENTRY("skywalking.trace_gray_list", "", PHP_INI_ALL, OnUpdateString, trace_gray_list, zend_skywalking_globals, skywalking_globals)
 
 PHP_INI_END()
 
@@ -91,6 +94,9 @@ static void php_skywalking_init_globals(zend_skywalking_globals *skywalking_glob
 
     // message queue
     skywalking_globals->mq_max_message_length = 0;
+
+    // gray release
+    skywalking_globals->trace_gray_list = nullptr;
 }
 
 PHP_FUNCTION (skywalking_trace_id) {
@@ -213,7 +219,6 @@ PHP_RINIT_FUNCTION(skywalking)
             if (strlen(s_info->service_instance) == 0) {
                 return SUCCESS;
             }
-
             sky_request_init(nullptr, 0);
         }
     }

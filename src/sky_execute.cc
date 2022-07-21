@@ -51,6 +51,8 @@ void sky_execute_ex(zend_execute_data *execute_data) {
     int is_class = fn->common.scope != nullptr && fn->common.scope->name != nullptr;
     char *class_name = is_class ? ZSTR_VAL(fn->common.scope->name) : nullptr;  //获取当前类名
     char *function_name = fn->common.function_name != nullptr ? ZSTR_VAL(fn->common.function_name) : nullptr; // 获取方法名zend_string_value
+
+
     std::string className = "";
     std::string methodName = "";
     if (class_name != nullptr) className = class_name;
@@ -61,8 +63,12 @@ void sky_execute_ex(zend_execute_data *execute_data) {
     int64_t request_id = -1;
     bool afterExec = true;
     zval *sw_response;
+
+
     if (SKY_IS_SWOOLE(function_name) || SKY_IS_SWOOLE_FRAMEWORK(class_name, function_name)) {
+        sky_log("抓取swoole frame 请求: " + className + ", " + methodName);
         uint32_t arg_count = ZEND_CALL_NUM_ARGS(execute_data);
+        sky_log("参数数量： " + std::to_string(arg_count));
         if (arg_count == 2) {
             zval *sw_request = ZEND_CALL_ARG(execute_data, 1);
             sw_response = ZEND_CALL_ARG(execute_data, 2);
@@ -77,22 +83,31 @@ void sky_execute_ex(zend_execute_data *execute_data) {
                         SKYWALKING_G(is_swoole) = true;
                         request_id = Z_LVAL_P(z_fd);
                         sky_log("http请求->  z_fd: " + std::to_string(request_id));
-                        sky_request_init(sw_request, request_id);
+                        // 如果由于某些原因初始化返回false,
+                        if(!sky_request_init(sw_request, request_id)){
+                            sky_log("初始化返回false， 取消链路，清理现场");
+                            auto *segment = sky_get_segment(nullptr, request_id);
+                            if (segment != nullptr){ // 这里初始化失败了，尝试清理可能存在的segment
+                                delete segment;
+                            }
+                            ori_execute_ex(execute_data);
+                            return;
+                        }
                     }
                 }
             }
         }
 
         // swoft的rpc请求
-        if (arg_count == 4 && SKY_IS_SWOFT_RPC(class_name, function_name)){
+        if (arg_count == 4 && (SKY_IS_SWOFT_RPC(class_name, function_name) || SKY_IS_HYPERF_RPC(class_name, function_name))){
             zval *server = ZEND_CALL_ARG(execute_data, 1);
             zval *fd = ZEND_CALL_ARG(execute_data, 2);
             zval *reactorId = ZEND_CALL_ARG(execute_data, 3);
             zval *data = ZEND_CALL_ARG(execute_data, 4);
             std::string swfHost;
             std::string swfPort = "";
+            sky_log("swoft/hyperf rpc 请求");
             if (SKY_IS_OBJECT(server)){
-
                 zval *host = sky_read_property(server, "host", 0);
                 zval *port = sky_read_property(server, "port", 0);
                 swfHost = Z_STRVAL_P(host);
@@ -150,11 +165,13 @@ void sky_execute_ex(zend_execute_data *execute_data) {
     if (SKYWALKING_G(is_swoole)) {
 
         if (sky_get_segment(execute_data, request_id) == nullptr) {
+//            sky_log("168， 获取segment时是nullptr");
             ori_execute_ex(execute_data);
             return;
         }
     } else {
         if (sky_get_segment(execute_data, 0) == nullptr) {
+//            sky_log("174， 获取segment时是nullptr");
             ori_execute_ex(execute_data);
             return;
         }
@@ -163,6 +180,7 @@ void sky_execute_ex(zend_execute_data *execute_data) {
     Span *span = nullptr;
 //    sky_log("log debug2: ");
     if (class_name != nullptr && function_name != nullptr) {
+//        sky_log("抓取到类和方法名, " + std::string(class_name) + "," + std::string(function_name));
         if (strcmp(function_name, "executeCommand") == 0) {
             span = sky_predis(execute_data, class_name, function_name);
         } else if (strcmp(class_name, "Grpc\\BaseStub") == 0) {
@@ -176,13 +194,6 @@ void sky_execute_ex(zend_execute_data *execute_data) {
             afterExec = false;
             span = sky_plugin_hyperf_guzzle(execute_data, class_name, function_name);
         }else if (SKY_STRCMP(class_name, "Swlib\\Saber") && SKY_STRCMP(function_name, "request")) {
-//            php_printf(class_name);
-//            php_printf("\n");
-//            php_printf(function_name);
-//            php_printf("\n");
-//            php_printf("===================================");
-//            php_printf("\n");
-//            php_printf("\n");
             afterExec = false;
             span = sky_plugin_saber(execute_data, class_name, function_name);
 
@@ -190,14 +201,14 @@ void sky_execute_ex(zend_execute_data *execute_data) {
 
 
     } else if (function_name != nullptr) {
-//        sky_log("log debug3: ");
+//        sky_log("抓取到方法名, " + std::string(function_name));
         if (SKY_STRCMP(function_name, "swoole_curl_exec")) {
             afterExec = false;
             sky_plugin_swoole_curl(execute_data, "", function_name);
         }
     }
-//    sky_log("log debug202: ");
     if (afterExec) {
+//        sky_log("afterExec, 执行原方法");
         ori_execute_ex(execute_data);
         if (span != nullptr) {
             span->setEndTIme();
@@ -205,7 +216,7 @@ void sky_execute_ex(zend_execute_data *execute_data) {
     }
 
     if (swoole) {
-//        sky_log("log debug1:211 ");
+        sky_log("219，执行刷新上报");
         sky_request_flush(sw_response, request_id);
     }
 }
