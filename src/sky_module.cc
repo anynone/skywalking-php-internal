@@ -132,10 +132,10 @@ void sky_module_init() {
 
     // swoole 容器场景多次模块初始化会有问题,限定在1号进程才启用队列消费者
     // php-fpm方式会有fpm进程数量的消费者处理消息
-//    if (!(std::string(sapi_module.name) == "cli" && strPid.str() != "1")){
+    if (!(std::string(sapi_module.name) == "cli" && strPid.str() != "1")){
         sky_log("consumer init : pid = " + strPid.str() + "\n");
         new Manager(opt, s_info);
-//    }
+    }
 
 //    sky_log("process name" + get_current_process_name());
 
