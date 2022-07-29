@@ -29,5 +29,12 @@ std::string Tag::getKey() {
 }
 
 std::string Tag::getValue() {
+    // 标签内容最多支持2k
+    int len = _value.length();
+    if (len > 2048){
+        _value.resize(2048);
+        _value.append("... total len: ");
+        _value.append(std::to_string(len));
+    }
     return _value;
 }
