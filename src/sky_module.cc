@@ -115,7 +115,7 @@ void sky_module_init() {
                 boost::interprocess::open_or_create,
 //                boost::interprocess::create_only,
                 s_info->mq_name,
-                512,
+                256,
                 SKYWALKING_G(mq_max_message_length),
                 boost::interprocess::permissions(0666)
         );
