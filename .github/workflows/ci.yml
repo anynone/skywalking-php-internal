@@ -155,7 +155,7 @@ jobs:
 
       - name: Publish Dokcer image
         if: github.event_name == 'push'
-        uses: elgohr/Publish-Docker-Github-Action@2.13
+        uses: elgohr/Publish-Docker-Github-Action@v5
         with:
           name: skyapm/skywalking-php-${{ matrix.php-version }}-fpm-alpine
           username: ${{ secrets.DOCKER_USERNAME }}
