@@ -108,8 +108,7 @@ int64_t sky_find_swoole_fd(zend_execute_data *execute_data) {
         uint32_t arg_count = ZEND_CALL_NUM_ARGS(execute_data->prev_execute_data);
         if (arg_count == 2) {
             zval *sw_request = ZEND_CALL_ARG(execute_data->prev_execute_data, 1);
-            if (Z_TYPE_P(sw_request) == IS_OBJECT && Z_TYPE_P(sw_request)->ce != nullptr && Z_TYPE_P(sw_request)->ce->name !=
-                                                                                                    nullptr) {
+            if (Z_TYPE_P(sw_request) == IS_OBJECT && Z_TYPE_P(sw_request)->ce != nullptr && Z_TYPE_P(sw_request)->ce->name != nullptr) {
                 if (strcmp(ZSTR_VAL(Z_OBJ_P(sw_request)->ce->name), "Swoole\\Http\\Request") == 0) {
                     zval *fd = sky_read_property(sw_request, "fd", 0);
                     return Z_LVAL_P(fd);
@@ -118,8 +117,7 @@ int64_t sky_find_swoole_fd(zend_execute_data *execute_data) {
         }
         if (arg_count == 4){
             zval *swooleServer = ZEND_CALL_ARG(execute_data->prev_execute_data, 1);
-            if (Z_TYPE_P(swooleServer) == IS_OBJECT && Z_TYPE_P(sw_request)->ce != nullptr && Z_TYPE_P(sw_request)->ce->name !=
-                                                                                               nullptr) {
+            if (Z_TYPE_P(swooleServer) == IS_OBJECT && Z_TYPE_P(sw_request)->ce != nullptr && Z_TYPE_P(sw_request)->ce->name != nullptr) {
                 if (strcmp(ZSTR_VAL(Z_OBJ_P(swooleServer)->ce->name), "Swoole\\Server") == 0) {
                     zval *fd = ZEND_CALL_ARG(execute_data->prev_execute_data, 2);
                     return Z_LVAL_P(fd);
