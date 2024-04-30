@@ -1,3 +1,4 @@
+新项目请使用 skywalking官方 skywalking-php项目，本项目不再维护
 SkyAPM PHP
 
 
