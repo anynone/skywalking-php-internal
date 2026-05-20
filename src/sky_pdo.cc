@@ -39,7 +39,7 @@ Span *sky_pdo(zend_execute_data *execute_data, const std::string &class_name, co
                 // todo statement
                 zval *statement = ZEND_CALL_ARG(execute_data, 1);
                 if (Z_TYPE_P(statement) == IS_STRING) {
-                    span->addTag("db.statement", Z_STRVAL_P(statement));
+                    span->addTag("db.statement", std::string(Z_STRVAL_P(statement), Z_STRLEN_P(statement)));
                 }
             }
 
@@ -120,15 +120,25 @@ std::string sky_pdo_dbh_peer(Span *span, pdo_dbh_t *dbh) {
     return nullptr;
 }
 
-void sky_pdo_check_errors(zend_execute_data *execute_data, Span *span) {    
+void sky_pdo_check_errors(zend_execute_data *execute_data, Span *span) {
     zval *obj = &(execute_data)->This, property, return_ptr;
     ZVAL_STRING(&property, "errorInfo");
-    
+
     call_user_function(CG(function_table), obj, &property, &return_ptr, 0, nullptr);
     if (Z_TYPE(return_ptr) == IS_ARRAY) {
-        span->pushLog(new SkyCoreSpanLog("SQLSTATE", Z_STRVAL_P(zend_hash_index_find(Z_ARRVAL(return_ptr), 0))));
-        span->pushLog(new SkyCoreSpanLog("Error Code", std::to_string(Z_LVAL_P(zend_hash_index_find(Z_ARRVAL(return_ptr), 1)))));
-        span->pushLog(new SkyCoreSpanLog("Error", Z_STRVAL_P(zend_hash_index_find(Z_ARRVAL(return_ptr), 2))));
+        zval *val0 = zend_hash_index_find(Z_ARRVAL(return_ptr), 0);
+        zval *val1 = zend_hash_index_find(Z_ARRVAL(return_ptr), 1);
+        zval *val2 = zend_hash_index_find(Z_ARRVAL(return_ptr), 2);
+
+        if (val0 != nullptr && Z_TYPE_P(val0) == IS_STRING) {
+            span->pushLog(new SkyCoreSpanLog("SQLSTATE", Z_STRVAL_P(val0)));
+        }
+        if (val1 != nullptr && Z_TYPE_P(val1) == IS_LONG) {
+            span->pushLog(new SkyCoreSpanLog("Error Code", std::to_string(Z_LVAL_P(val1))));
+        }
+        if (val2 != nullptr && Z_TYPE_P(val2) == IS_STRING) {
+            span->pushLog(new SkyCoreSpanLog("Error", Z_STRVAL_P(val2)));
+        }
     }
 
     zval_dtor(&return_ptr);

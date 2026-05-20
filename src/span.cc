@@ -112,7 +112,12 @@ void Span::setEndTIme() {
 }
 
 void Span::setOperationName(const std::string &name) {
-    operationName = name.substr(0, name.find('?'));
+    size_t pos = name.find('?');
+    if (pos != std::string::npos) {
+        operationName = name.substr(0, pos);
+    } else {
+        operationName = name;
+    }
 }
 
 void Span::setPeer(const std::string &p) {

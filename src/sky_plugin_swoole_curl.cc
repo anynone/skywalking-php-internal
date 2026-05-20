@@ -39,12 +39,19 @@ void sky_plugin_swoole_curl(zend_execute_data *execute_data, const std::string &
         zval *handle = ZEND_CALL_ARG(execute_data, 1);
 
         zval *urlInfo = sky_read_property(handle, "urlInfo", 0);
+        if (urlInfo == nullptr || Z_TYPE_P(urlInfo) != IS_ARRAY) {
+            ori_execute_ex(execute_data);
+            return;
+        }
+
         zval *scheme = zend_hash_str_find(Z_ARRVAL_P(urlInfo), ZEND_STRL("scheme"));
         zval *host = zend_hash_str_find(Z_ARRVAL_P(urlInfo), ZEND_STRL("host"));
         zval *port = zend_hash_str_find(Z_ARRVAL_P(urlInfo), ZEND_STRL("port"));
         zval *path = zend_hash_str_find(Z_ARRVAL_P(urlInfo), ZEND_STRL("path"));
 
-        if (!Z_ISUNDEF_P(scheme) && Z_TYPE_P(scheme) == IS_STRING) {
+        if (!Z_ISUNDEF_P(scheme) && Z_TYPE_P(scheme) == IS_STRING &&
+            !Z_ISUNDEF_P(host) && Z_TYPE_P(host) == IS_STRING &&
+            !Z_ISUNDEF_P(port) && Z_TYPE_P(port) == IS_LONG) {
             std::string _scheme(Z_STRVAL_P(scheme));
             std::string _host(Z_STRVAL_P(host));
             int _port(Z_LVAL_P(port));

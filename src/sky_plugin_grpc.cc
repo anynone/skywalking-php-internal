@@ -39,16 +39,16 @@ Span *sky_plugin_grpc(zend_execute_data *execute_data, char *class_name, char *f
 
         zval *method = ZEND_CALL_ARG(execute_data, 1);
         if (Z_TYPE_P(method) == IS_STRING) {
-            span->addTag("rpc.method", Z_STRVAL_P(method));
+            span->addTag("rpc.method", std::string(Z_STRVAL_P(method), Z_STRLEN_P(method)));
         }
 
         zval *hostname = sky_read_property(&(execute_data->This), "hostname", 1);
         zval *hostname_override = sky_read_property(&(execute_data->This), "hostname_override", 1);
 
         if (hostname_override != nullptr && Z_TYPE_P(hostname_override) == IS_STRING) {
-            span->setPeer(Z_STRVAL_P(hostname_override));
+            span->setPeer(std::string(Z_STRVAL_P(hostname_override), Z_STRLEN_P(hostname_override)));
         } else if (hostname != nullptr && Z_TYPE_P(hostname) == IS_STRING) {
-            span->setPeer(Z_STRVAL_P(hostname));
+            span->setPeer(std::string(Z_STRVAL_P(hostname), Z_STRLEN_P(hostname)));
         }
 
         zval *metadata;

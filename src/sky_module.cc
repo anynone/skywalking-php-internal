@@ -157,6 +157,17 @@ void sky_module_cleanup() {
 //        sky_log("queue removed");
 //        boost::interprocess::message_queue::remove(s_info->mq_name);
 //    }
+
+    // 清理 segments map
+    if (SKYWALKING_G(segment) != nullptr) {
+        auto *segments = static_cast<std::map<uint64_t, Segment *> *>SKYWALKING_G(segment);
+        for (auto &entry : *segments) {
+            delete entry.second;
+        }
+        segments->clear();
+        delete segments;
+        SKYWALKING_G(segment) = nullptr;
+    }
 }
 
 bool sky_request_init(zval *request, uint64_t request_id) {
@@ -183,9 +194,19 @@ bool sky_request_init(zval *request, uint64_t request_id) {
             sw = nullptr;
         }
 
-        header = (sw != nullptr ? Z_STRVAL_P(sw) : "");
+        if (sw != nullptr && Z_TYPE_P(sw) == IS_STRING) {
+            header = std::string(Z_STRVAL_P(sw), Z_STRLEN_P(sw));
+        } else {
+            header = "";
+        }
         sky_log("header: " + header);
-        uri = Z_STRVAL_P(zend_hash_str_find(Z_ARRVAL_P(swoole_server), "request_uri", sizeof("request_uri") - 1));
+
+        zval *uri_val = zend_hash_str_find(Z_ARRVAL_P(swoole_server), "request_uri", sizeof("request_uri") - 1);
+        if (uri_val != nullptr && Z_TYPE_P(uri_val) == IS_STRING) {
+            uri = std::string(Z_STRVAL_P(uri_val), Z_STRLEN_P(uri_val));
+        } else {
+            uri = "";
+        }
         sky_log("uri: " + uri);
         std::string gray_list = SKYWALKING_G(trace_gray_list);
 
@@ -195,18 +216,22 @@ bool sky_request_init(zval *request, uint64_t request_id) {
             return false;
         }
         peer_val = zend_hash_str_find(Z_ARRVAL_P(swoole_header), "host", sizeof("host") - 1);
-        if (peer_val != nullptr) {
-            peer = Z_STRVAL_P(peer_val);
+        if (peer_val != nullptr && Z_TYPE_P(peer_val) == IS_STRING) {
+            peer = std::string(Z_STRVAL_P(peer_val), Z_STRLEN_P(peer_val));
             sky_log("header 中获取到host: " + peer);
         } else {
             char hostname[HOST_NAME_MAX + 1];
             if (gethostname(hostname, sizeof(hostname))) {
                 hostname[0] = '\0';
             }
-            peer_val = zend_hash_str_find(Z_ARRVAL_P(swoole_server), "server_port", sizeof("server_port") - 1);
             peer += hostname;
             peer += ":";
-            peer += std::to_string(Z_LVAL_P(peer_val));
+            zval *port_val = zend_hash_str_find(Z_ARRVAL_P(swoole_server), "server_port", sizeof("server_port") - 1);
+            if (port_val != nullptr && Z_TYPE_P(port_val) == IS_LONG) {
+                peer += std::to_string(Z_LVAL_P(port_val));
+            } else {
+                peer += "80";
+            }
             sky_log("本机地址和port拼接 获取到host: " + peer);
         }
     } else {
@@ -230,7 +255,11 @@ bool sky_request_init(zval *request, uint64_t request_id) {
             sw = nullptr;
         }
 
-        header = (sw != nullptr ? Z_STRVAL_P(sw) : "");
+        if (sw != nullptr && Z_TYPE_P(sw) == IS_STRING) {
+            header = std::string(Z_STRVAL_P(sw), Z_STRLEN_P(sw));
+        } else {
+            header = "";
+        }
         uri = get_page_request_uri();
         peer = get_page_request_peer();
         sky_log("get_page_request_uri， peer" + uri + "," + peer);
@@ -248,6 +277,7 @@ bool sky_request_init(zval *request, uint64_t request_id) {
     sky_log("segment写入到请求id segment数组");
     auto const result = segments->insert(std::pair<uint64_t, Segment *>(request_id, segment));
     if (not result.second) {
+        delete result.first->second;
         result.first->second = segment;
     }
 
@@ -259,8 +289,8 @@ bool sky_request_init(zval *request, uint64_t request_id) {
     segments->at(request_id)->createRefs();
     sky_log("获取request_method,添加请求方法");
     zval *request_method = zend_hash_str_find(Z_ARRVAL(PG(http_globals)[TRACK_VARS_SERVER]), ZEND_STRL("REQUEST_METHOD"));
-    if (request_method != NULL) {
-        span->addTag("http.method", Z_STRVAL_P(request_method));
+    if (request_method != NULL && Z_TYPE_P(request_method) == IS_STRING) {
+        span->addTag("http.method", std::string(Z_STRVAL_P(request_method), Z_STRLEN_P(request_method)));
     }
 
     sky_log("初始化链路信息初始化完成");
@@ -312,28 +342,32 @@ void sky_rpc_init(uint64_t request_id, swoft_json_rpc rpcData) {
 
 // 清除本次请求的消息
 void sky_request_destory(uint64_t request_id){
-    auto *segment = sky_get_segment(nullptr, request_id);
+    auto *segments = static_cast<std::map<uint64_t, Segment *> *>SKYWALKING_G(segment);
     std::string logStr = "\nclean\n";
 
-    if (segment != nullptr){
+    if (segments != nullptr && segments->find(request_id) != segments->end()){
         logStr.append("no null\n");
-        delete segment;
+        delete segments->at(request_id);
+        segments->erase(request_id);
     }
 
     php_printf(logStr.c_str());
 }
 
 void sky_request_flush(zval *response, uint64_t request_id) {
-    auto *segment = sky_get_segment(nullptr, request_id);
+    auto *segments = static_cast<std::map<uint64_t, Segment *> *>SKYWALKING_G(segment);
 
-    if (segment == nullptr){
+    if (segments == nullptr || segments->find(request_id) == segments->end()){
         return;
     }
+
+    auto *segment = segments->at(request_id);
     if (response == nullptr) {
         segment->setStatusCode(SG(sapi_headers).http_response_code);
     }
     std::string msg = segment->marshal(SKYWALKING_G(app_code));
     delete segment;
+    segments->erase(request_id);
 
     int msg_length = static_cast<int>(msg.size());
 

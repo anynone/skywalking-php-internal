@@ -85,7 +85,7 @@ Span *sky_plugin_mysqli(zend_execute_data *execute_data, const std::string &clas
             sky_log("bug sky_plugin_mysqli.cc 75");
             if (statement != nullptr && Z_TYPE_P(statement) == IS_STRING) {
                 sky_log("bug sky_plugin_mysqli.cc 77");
-                span->addTag("db.statement", Z_STRVAL_P(statement));
+                span->addTag("db.statement", std::string(Z_STRVAL_P(statement), Z_STRLEN_P(statement)));
             }
             sky_log("bug sky_plugin_mysqli.cc 80");
             if (mysqli != nullptr){

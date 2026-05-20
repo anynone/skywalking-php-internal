@@ -203,6 +203,11 @@ PHP_MSHUTDOWN_FUNCTION (skywalking) {
             return SUCCESS;
         }
         sky_module_cleanup();
+
+        if (s_info != nullptr) {
+            munmap(s_info, sizeof(struct service_info));
+            s_info = nullptr;
+        }
     }
 
     return SUCCESS;

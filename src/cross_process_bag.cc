@@ -51,10 +51,18 @@ void CrossProcessBag::decode(const std::string &h) {
                                         std::sregex_token_iterator());
 
     if (header_bag.size() >= 8) {
-        sample = std::stoi(header_bag[0]);
+        try {
+            sample = !header_bag[0].empty() ? std::stoi(header_bag[0]) : 0;
+        } catch (...) {
+            sample = 0;
+        }
         traceId = Base64::decode(header_bag[1]);
         parentSegmentId = Base64::decode(header_bag[2]);
-        parentSpanId = std::stoi(header_bag[3]);
+        try {
+            parentSpanId = !header_bag[3].empty() ? std::stoi(header_bag[3]) : 0;
+        } catch (...) {
+            parentSpanId = 0;
+        }
         parentService = Base64::decode(header_bag[4]);
         parentServiceInstance = Base64::decode(header_bag[5]);
         parentEndpoint = Base64::decode(header_bag[6]);

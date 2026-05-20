@@ -85,11 +85,7 @@ void sky_execute_ex(zend_execute_data *execute_data) {
                         sky_log("http请求->  z_fd: " + std::to_string(request_id));
                         // 如果由于某些原因初始化返回false,
                         if(!sky_request_init(sw_request, request_id)){
-                            sky_log("初始化返回false， 取消链路，清理现场");
-                            auto *segment = sky_get_segment(nullptr, request_id);
-                            if (segment != nullptr){ // 这里初始化失败了，尝试清理可能存在的segment
-                                delete segment;
-                            }
+                            sky_log("初始化返回false， 取消链路");
                             ori_execute_ex(execute_data);
                             return;
                         }

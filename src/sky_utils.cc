@@ -47,8 +47,14 @@ std::string get_page_request_uri() {
         }
         carrier = zend_hash_str_find(&EG(symbol_table), ZEND_STRL("_SERVER"));
 
-        request_uri = zend_hash_str_find(Z_ARRVAL_P(carrier), "REQUEST_URI", sizeof("REQUEST_URI") - 1);
-        uri = Z_STRVAL_P(request_uri);
+        if (carrier != nullptr && Z_TYPE_P(carrier) == IS_ARRAY) {
+            request_uri = zend_hash_str_find(Z_ARRVAL_P(carrier), "REQUEST_URI", sizeof("REQUEST_URI") - 1);
+            if (request_uri != nullptr && Z_TYPE_P(request_uri) == IS_STRING) {
+                uri = std::string(Z_STRVAL_P(request_uri), Z_STRLEN_P(request_uri));
+            } else {
+                uri = "";
+            }
+        }
     }
     return uri;
 }
@@ -69,14 +75,17 @@ std::string get_page_request_peer() {
     }
     carrier = zend_hash_str_find(&EG(symbol_table), ZEND_STRL("_SERVER"));
 
-    request_host = zend_hash_str_find(Z_ARRVAL_P(carrier), "HTTP_HOST", sizeof("HTTP_HOST") - 1);
-    request_port = zend_hash_str_find(Z_ARRVAL_P(carrier), "SERVER_PORT", sizeof("SERVER_PORT") - 1);
-    if (request_host == nullptr) {
-        request_host = zend_hash_str_find(Z_ARRVAL_P(carrier), "SERVER_ADDR", sizeof("SERVER_ADDR") - 1);
-    }
+    if (carrier != nullptr && Z_TYPE_P(carrier) == IS_ARRAY) {
+        request_host = zend_hash_str_find(Z_ARRVAL_P(carrier), "HTTP_HOST", sizeof("HTTP_HOST") - 1);
+        request_port = zend_hash_str_find(Z_ARRVAL_P(carrier), "SERVER_PORT", sizeof("SERVER_PORT") - 1);
+        if (request_host == nullptr) {
+            request_host = zend_hash_str_find(Z_ARRVAL_P(carrier), "SERVER_ADDR", sizeof("SERVER_ADDR") - 1);
+        }
 
-    if (request_host != nullptr && request_port != nullptr) {
-        peer = std::string(Z_STRVAL_P(request_host)) + ":" + Z_STRVAL_P(request_port);
+        if (request_host != nullptr && Z_TYPE_P(request_host) == IS_STRING &&
+            request_port != nullptr && Z_TYPE_P(request_port) == IS_LONG) {
+            peer = std::string(Z_STRVAL_P(request_host), Z_STRLEN_P(request_host)) + ":" + std::to_string(Z_LVAL_P(request_port));
+        }
     }
 
     return peer;
@@ -199,6 +208,8 @@ int sky_json_decode(std::string json,  zval* jsonZval){
 
     php_json_decode_ex(jsonZval, jsonC, strlen(jsonC), PHP_JSON_OBJECT_AS_ARRAY, 5);
 
+    delete[] jsonC;
+
     if (Z_TYPE_P(jsonZval) != IS_ARRAY){
         return -1;
     }
@@ -229,7 +240,9 @@ zend_long sky_hashtable_default(zval* hashTable, std::string key, int dft){
 
 void sky_hashtable_default(zval* hashTable, std::string key, zval** dft){
     if (Z_TYPE_P(hashTable) == IS_ARRAY){
-        *dft = zend_hash_find(Z_ARRVAL_P(hashTable), zend_string_init(key.c_str(), strlen(key.c_str()), 0));
+        zend_string *key_str = zend_string_init(key.c_str(), strlen(key.c_str()), 0);
+        *dft = zend_hash_find(Z_ARRVAL_P(hashTable), key_str);
+        zend_string_release(key_str);
     }else{
         ZVAL_NULL(*dft);
     }
